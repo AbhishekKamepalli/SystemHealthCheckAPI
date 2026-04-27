@@ -1,0 +1,115 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag produced by the CI workflow. Leave blank to deploy latest."
+        required: false
+        default: ""
+      container_image:
+        description: "Optional full Artifact Registry image URI. If provided, it overrides the derived image reference."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dag-health-api-deploy-dev
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: "1.13.3"
+  SERVICE_NAME: dag-health-api
+  DEPLOY_ENVIRONMENT: dev
+  TERRAFORM_ENV_DIR: terraform/environments/dev
+
+jobs:
+  deploy_artifact:
+    name: Deploy artifact to dev
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required repository settings
+        shell: bash
+        run: |
+          test -n "${{ vars.GCP_PROJECT_ID }}" || (echo "Missing repository variable: GCP_PROJECT_ID" && exit 1)
+          test -n "${{ vars.GCP_REGION }}" || (echo "Missing repository variable: GCP_REGION" && exit 1)
+          test -n "${{ vars.TF_STATE_BUCKET }}" || (echo "Missing repository variable: TF_STATE_BUCKET" && exit 1)
+          test -n "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" || (echo "Missing secret: GCP_WORKLOAD_IDENTITY_PROVIDER" && exit 1)
+          test -n "${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}" || (echo "Missing secret: GCP_SERVICE_ACCOUNT_EMAIL" && exit 1)
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Derive artifact image reference
+        id: image
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.container_image }}" ]]; then
+            IMAGE_URI="${{ inputs.container_image }}"
+          else
+            IMAGE_TAG="${{ inputs.image_tag }}"
+            if [[ -z "${IMAGE_TAG}" ]]; then
+              IMAGE_TAG="latest"
+            fi
+            IMAGE_URI="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}-${{ env.DEPLOY_ENVIRONMENT }}-repo/${{ env.SERVICE_NAME }}:${IMAGE_TAG}"
+          fi
+
+          echo "image_uri=${IMAGE_URI}" >> "${GITHUB_OUTPUT}"
+          echo "Deploying artifact image: ${IMAGE_URI}"
+
+      - name: Terraform init with remote state
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="prefix=${{ vars.TF_STATE_PREFIX != '' && vars.TF_STATE_PREFIX || 'dag-health-api/dev' }}"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan deployment
+        run: |
+          terraform plan \
+            -input=false \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="region=${{ vars.GCP_REGION }}" \
+            -var="environment=${{ env.DEPLOY_ENVIRONMENT }}" \
+            -var="service_name=${{ env.SERVICE_NAME }}" \
+            -var="image_tag=${{ inputs.image_tag != '' && inputs.image_tag || 'latest' }}" \
+            -var="container_image=${{ steps.image.outputs.image_uri }}" \
+            -out=tfplan
+
+      - name: Terraform apply deployment
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Publish deployed endpoint
+        run: |
+          echo "Cloud Run URL:"
+          terraform output cloud_run_service_url
+
+      - name: Deployment notes
+        run: |
+          echo "Expected order:"
+          echo "1. Run Bootstrap Infrastructure once for prerequisites."
+          echo "2. Run Infrastructure to prepare the platform."
+          echo "3. Run CI or merge to main so an image is built and published."
+          echo "4. Run CD to deploy that image."
+          echo "This workflow is intended to run behind the protected GitHub Actions environment named 'dev'."
+          echo "Use environment approval rules, required reviewers, and scoped secrets for production-style delivery discipline."
+          echo "The workflow expects a GCS backend bucket through vars.TF_STATE_BUCKET so Terraform state persists across runs."

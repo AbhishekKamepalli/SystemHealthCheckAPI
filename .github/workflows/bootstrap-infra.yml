@@ -1,0 +1,71 @@
+name: Bootstrap Infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dag-health-api-bootstrap-infra
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: "1.13.3"
+  TERRAFORM_ENV_DIR: terraform/environments/dev
+
+jobs:
+  bootstrap_dev_infra:
+    name: Bootstrap prerequisite infrastructure
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: ${{ env.TERRAFORM_ENV_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required repository settings
+        shell: bash
+        run: |
+          test -n "${{ vars.GCP_PROJECT_ID }}" || (echo "Missing repository variable: GCP_PROJECT_ID" && exit 1)
+          test -n "${{ vars.GCP_REGION }}" || (echo "Missing repository variable: GCP_REGION" && exit 1)
+          test -n "${{ vars.TF_STATE_BUCKET }}" || (echo "Missing repository variable: TF_STATE_BUCKET" && exit 1)
+          test -n "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" || (echo "Missing secret: GCP_WORKLOAD_IDENTITY_PROVIDER" && exit 1)
+          test -n "${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}" || (echo "Missing secret: GCP_SERVICE_ACCOUNT_EMAIL" && exit 1)
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Terraform init with remote state
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="prefix=${{ vars.TF_STATE_PREFIX != '' && vars.TF_STATE_PREFIX || 'dag-health-api/dev' }}"
+
+      - name: Apply bootstrap prerequisites
+        run: |
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="region=${{ vars.GCP_REGION }}" \
+            -target=google_project_service.required_apis \
+            -target=module.artifact_registry
+
+      - name: Next step guidance
+        run: |
+          echo "Bootstrap complete."
+          echo "Next:"
+          echo "1. Run Infrastructure to prepare the platform."
+          echo "2. Run CI to build and publish the application image."
+          echo "3. Run CD to deploy a chosen artifact version."

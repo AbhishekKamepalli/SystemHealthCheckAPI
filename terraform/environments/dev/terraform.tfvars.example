@@ -1,0 +1,20 @@
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+
+environment  = "dev"
+service_name = "dag-health-api"
+image_tag    = "latest"
+
+# Optional override if you want to deploy an already-built image directly.
+# container_image = "us-central1-docker.pkg.dev/your-gcp-project-id/dag-health-api-dev-repo/dag-health-api:latest"
+
+allow_unauthenticated = true
+
+env_vars = {
+  APP_ENV = "dev"
+}
+
+# Optional Monitoring notification channels:
+# notification_channel_ids = [
+#   "projects/your-gcp-project-id/notificationChannels/1234567890"
+# ]
