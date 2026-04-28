@@ -20,34 +20,26 @@ Because the full graph is provided in every request, the service does not requir
 
 ## Core Design
 
-The implementation is split into focused modules:
+The implementation is intentionally small and split into three main modules:
 
 - `app/main.py`
   - FastAPI app setup
   - routes
   - exception handlers
-  - observability middleware
+  - request logging middleware
 - `app/models.py`
   - request and response models
   - validation rules
-- `app/graph.py`
-  - DAG construction
-  - dependency validation
-  - cycle detection
-  - BFS traversal
-- `app/health_checker.py`
+- `app/services.py`
+  - DAG construction and validation
+  - cycle detection and BFS traversal
   - async health check execution with `httpx`
-- `app/evaluator.py`
   - effective health propagation
   - summary generation
-- `app/reporting.py`
   - browser-friendly HTML rendering
-- `app/observability.py`
-  - structured logging
-  - metrics helpers
-  - liveness/readiness support
+  - structured logging and liveness/readiness support
 
-This separation keeps graph logic, HTTP behavior, health evaluation, and presentation independent and easy to test.
+This keeps the project compact while still separating HTTP routing, data models, and business logic.
 
 ## Health Model
 
@@ -131,8 +123,6 @@ Error responses use a consistent shape:
   - liveness probe
 - `GET /health/ready`
   - readiness probe
-- `GET /metrics`
-  - Prometheus-style metrics
 
 ## Observability
 
@@ -140,8 +130,7 @@ The app includes built-in observability features:
 
 - structured JSON logs to stdout
 - request IDs for correlation
-- optional trace ID extraction from `traceparent`
-- request count, latency, and in-flight request metrics
+- request method, path, status code, and duration in each request log
 - dedicated liveness and readiness endpoints
 
 This design works well in Cloud Run because:
@@ -164,9 +153,17 @@ The test suite covers:
 - evaluator behavior
 - API validation and responses
 - observability helpers
-- liveness/readiness/metrics endpoints
+- liveness/readiness endpoints
 
 This keeps the core logic and operational behavior verifiable without depending on external services.
+
+What is not covered by automated tests:
+
+- live external health-check integrations
+- Docker execution in CI
+- real GCP deployment behavior
+
+Those areas are documented and partially validated separately, but they still require environment-level verification.
 
 ## Limitations
 
@@ -190,7 +187,7 @@ Current implementation includes:
 - async health checking
 - effective health propagation
 - browser reporting
-- structured logging and metrics
+- structured request logging
 - liveness and readiness endpoints
 - unit and API tests
 

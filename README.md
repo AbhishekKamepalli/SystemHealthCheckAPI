@@ -8,13 +8,15 @@ Small FastAPI service that evaluates the health of a system modeled as a Directe
 - checks component health asynchronously
 - propagates dependency health through the DAG
 - returns structured JSON and a browser-friendly report
-- exposes liveness, readiness, metrics, and structured logs for operations
+- exposes liveness, readiness, and structured request logs for operations
 
 ## Project Structure
 
 - `app/`
   - FastAPI application code
-  - graph evaluation, health checking, reporting, and observability
+  - `main.py` for routes
+  - `models.py` for request/response models
+  - `services.py` for graph logic, health checks, reporting, and logging helpers
 - `tests/`
   - unit and API tests
 - `terraform/`
@@ -29,6 +31,7 @@ Small FastAPI service that evaluates the health of a system modeled as a Directe
 Requirements:
 
 - Python 3.11+
+- network access is optional for local testing, but real `health_check_url` values must be reachable from the machine running the app
 
 From the project root, create and activate a virtual environment.
 
@@ -52,6 +55,13 @@ Install dependencies:
 python -m pip install -e .[dev]
 ```
 
+If the app starts but `POST /evaluate-health` fails with `ModuleNotFoundError: No module named 'httpcore'`, the dependencies were only partially installed. Re-run:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e .[dev]
+```
+
 Start the app:
 
 ```bash
@@ -64,7 +74,6 @@ Open in the browser:
 - Browser health report page: [http://127.0.0.1:8000/health-report](http://127.0.0.1:8000/health-report)
 - Liveness endpoint: [http://127.0.0.1:8000/health/live](http://127.0.0.1:8000/health/live)
 - Readiness endpoint: [http://127.0.0.1:8000/health/ready](http://127.0.0.1:8000/health/ready)
-- Metrics endpoint: [http://127.0.0.1:8000/metrics](http://127.0.0.1:8000/metrics)
 
 ## Run Tests
 
@@ -80,7 +89,7 @@ The service is organized around a few focused concerns:
 - async component health checking
 - dependency-aware health aggregation
 - browser/report rendering
-- observability and operational endpoints
+- health endpoints and request logging
 
 The API uses BFS for traversal visibility and response output, while effective health propagation is computed in dependency-safe order so dependents reflect the worst status of their upstream services.
 
@@ -121,10 +130,10 @@ Invoke-RestMethod `
 
 - `POST /evaluate-health` returns JSON.
 - `GET /health-report` provides a browser page that renders the result as a human-readable table.
-- The app emits structured JSON logs with request IDs and optional `traceparent` trace IDs.
+- The app emits structured JSON logs with request path, method, status code, duration, and request ID.
 - `GET /health/live` is a liveness probe.
 - `GET /health/ready` is a readiness probe for platform/load-balancer checks.
-- `GET /metrics` exposes Prometheus-style metrics for request count, latency, and in-flight requests.
+- sample URLs such as `http://frontend/health` are useful for shape examples, but they will return `unhealthy` locally unless those hostnames actually exist and respond
 - More detailed design notes are in `ARCHITECTURE.md`.
 - Engineering process and AI-assistance notes are in `ENGINEERING_NOTES.md`.
 
@@ -133,7 +142,7 @@ Invoke-RestMethod `
 - The API is stateless, so the full graph is supplied on every request.
 - Health checks use a simple timeout-based strategy with no retries or persistence.
 - The app supports both structured JSON output and a browser-friendly HTML report because both machine and human consumers are useful for this service.
-- Observability is built around stdout JSON logs, health probes, and Prometheus-style metrics because those fit well with container platforms such as Cloud Run.
+- Logging is intentionally simple: stdout JSON logs plus health probes are enough for this service and fit well with container platforms such as Cloud Run.
 
 ## Current Implementation vs Future Scope
 
@@ -142,7 +151,7 @@ Implemented today:
 - DAG validation and cycle detection
 - async health checks
 - dependency-aware health aggregation
-- structured logging, liveness/readiness endpoints, and metrics
+- structured request logging and liveness/readiness endpoints
 - browser report rendering
 - unit and API tests
 

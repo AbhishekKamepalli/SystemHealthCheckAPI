@@ -1,10 +1,8 @@
 import httpx
 import pytest
 
-from app.evaluator import evaluate_system_health
-from app.graph import build_graph
-from app.health_checker import check_component_health
 from app.models import ComponentInput
+from app.services import build_graph, check_component_health, evaluate_system_health
 
 
 def make_component(name: str, url: str | None) -> ComponentInput:

@@ -6,7 +6,7 @@ client = TestClient(app)
 
 
 def test_api_returns_table_style_summary(monkeypatch):
-    from app import evaluator
+    from app import services
 
     async def fake_evaluate_system_health(components, graph):
         from app.models import HealthEvaluationResponse, SummaryRow
@@ -30,7 +30,7 @@ def test_api_returns_table_style_summary(monkeypatch):
             ),
         )
 
-    monkeypatch.setattr(evaluator, "evaluate_system_health", fake_evaluate_system_health)
+    monkeypatch.setattr(services, "evaluate_system_health", fake_evaluate_system_health)
 
     response = client.post(
         "/evaluate-health",
@@ -55,7 +55,7 @@ def test_api_returns_table_style_summary(monkeypatch):
 
 
 def test_health_report_render_returns_html_table(monkeypatch):
-    from app import evaluator
+    from app import services
 
     async def fake_evaluate_system_health(components, graph):
         from app.models import HealthEvaluationResponse, SummaryRow
@@ -82,7 +82,7 @@ def test_health_report_render_returns_html_table(monkeypatch):
             summary_table_markdown="unused in html test",
         )
 
-    monkeypatch.setattr(evaluator, "evaluate_system_health", fake_evaluate_system_health)
+    monkeypatch.setattr(services, "evaluate_system_health", fake_evaluate_system_health)
 
     response = client.post(
         "/health-report/render",
@@ -147,18 +147,6 @@ def test_readiness_endpoint_returns_ready_checks():
     body = response.json()
     assert body["status"] == "ready"
     assert any(check["name"] == "application_startup" for check in body["checks"])
-    assert any(check["name"] == "metrics_registry" for check in body["checks"])
-
-
-def test_metrics_endpoint_exposes_prometheus_metrics():
-    client.get("/health/live")
-    response = client.get("/metrics")
-
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/plain")
-    assert "dag_health_api_http_requests_total" in response.text
-    assert "dag_health_api_http_request_duration_seconds" in response.text
-    assert "dag_health_api_http_requests_in_progress" in response.text
 
 
 def test_cycle_returns_400():

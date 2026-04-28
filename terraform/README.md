@@ -73,7 +73,7 @@ This project intentionally does **not** provision:
 - persistent disks
 - Redis / Memorystore
 - Pub/Sub
-- CI/CD pipelines
+- CI/CD infrastructure resources inside GCP
 
 Those are not needed because the API is stateless and request-driven.
 
@@ -359,11 +359,11 @@ To keep the design aligned with the actual application and avoid over-engineerin
 - VPC connectors, because no private network egress requirement was stated
 - load balancers, because Cloud Run already provides the managed HTTPS endpoint
 - secrets management, because no secrets were specified for this app
-- CI/CD pipelines, because deployment automation was out of scope
+- CI/CD infrastructure resources in Terraform, because the repository uses GitHub Actions workflow files instead
 
 Optional note:
 
-- if this project were extended, Cloud Build or GitHub Actions could be added to build and push the container image automatically before Terraform updates the Cloud Run service
+- if this project were extended further, the existing GitHub Actions workflows could be expanded with environment approvals, promotion logic, and deeper deployment verification
 
 ## Current Implementation vs Future Scope
 

@@ -56,7 +56,7 @@ The repository contains concrete signs that generated output was reviewed and in
 
 - app code, infrastructure, workflows, and docs use consistent naming around `dag-health-api`
 - environment-aware Terraform naming is consistent across modules and examples
-- operational endpoints, metrics, logging, and Cloud Run configuration align with each other
+- operational endpoints, request logging, and Cloud Run configuration align with each other
 - delivery workflows now reflect a clear sequence:
   - bootstrap infrastructure
   - infrastructure preparation

@@ -1,6 +1,5 @@
-from app.exceptions import ValidationError400
-from app.graph import bfs_traversal, build_graph
 from app.models import ComponentInput
+from app.services import ValidationError400, bfs_traversal, build_graph
 
 
 def make_components(*names: str) -> list[ComponentInput]:
