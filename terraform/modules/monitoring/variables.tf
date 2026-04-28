@@ -53,3 +53,33 @@ variable "five_xx_duration" {
   type        = string
   default     = "300s"
 }
+
+variable "enable_latency_alert" {
+  description = "Whether to create a Cloud Run latency alert policy."
+  type        = bool
+  default     = true
+}
+
+variable "latency_threshold_ms" {
+  description = "Latency threshold in milliseconds. Default 2000 ms means 2 seconds."
+  type        = number
+  default     = 2000
+}
+
+variable "latency_alignment_period" {
+  description = "Alignment period used to evaluate Cloud Run latency metrics."
+  type        = string
+  default     = "300s"
+}
+
+variable "latency_duration" {
+  description = "Duration the latency threshold must hold before alerting."
+  type        = string
+  default     = "300s"
+}
+
+variable "latency_per_series_aligner" {
+  description = "Cloud Monitoring aligner used for the Cloud Run latency metric."
+  type        = string
+  default     = "ALIGN_MEAN"
+}

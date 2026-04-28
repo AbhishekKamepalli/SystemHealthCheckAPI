@@ -94,6 +94,11 @@ module "monitoring" {
   five_xx_error_rate_threshold = var.five_xx_error_rate_threshold
   five_xx_alignment_period     = var.five_xx_alignment_period
   five_xx_duration             = var.five_xx_duration
+  enable_latency_alert         = var.enable_latency_alert
+  latency_threshold_ms         = var.latency_threshold_ms
+  latency_alignment_period     = var.latency_alignment_period
+  latency_duration             = var.latency_duration
+  latency_per_series_aligner   = var.latency_per_series_aligner
 
   depends_on = [google_project_service.required_apis, module.cloud_run]
 }

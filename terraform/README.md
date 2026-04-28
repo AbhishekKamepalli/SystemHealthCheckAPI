@@ -26,25 +26,28 @@ At a high level:
 3. A dedicated service account is attached to the Cloud Run service.
 4. IAM makes unauthenticated invocation optional and configurable.
 5. Cloud Logging captures request/application logs automatically.
-6. Cloud Monitoring captures Cloud Run metrics automatically and raises a 5xx alert policy.
+6. Cloud Monitoring captures Cloud Run metrics automatically and raises alert policies for 5xx errors and high latency.
 
 ## Delivery Order
 
-This repository is intended to be used in three distinct steps:
+This repository is intended to be used in four distinct steps:
 
-1. **Infra**
-   Provision the infrastructure foundation first:
+1. **Bootstrap Infra**
+   Provision one-time prerequisites first:
    - required GCP APIs
    - Artifact Registry repository
    - Terraform remote state usage
+
+2. **Infra**
+   Provision the infrastructure foundation first:
    - Cloud Run, IAM, and monitoring platform resources when running the full infra workflow
    - the Infrastructure workflow can use a placeholder Cloud Run sample image so platform preparation does not depend on CI running first
 
-2. **CI**
+3. **CI**
    Validate the Python FastAPI application and build the Docker image.
    On `main`, CI can also publish the image to Artifact Registry when GCP repository settings are configured.
 
-3. **CD**
+4. **CD**
    Deploy a chosen image into the already-provisioned infrastructure using Terraform apply.
 
 The workflows are intentionally split so the delivery path is easier to understand:
@@ -64,6 +67,7 @@ This project provisions:
 - Cloud Run IAM binding for public invocation when enabled
 - Required GCP API enablement
 - Cloud Monitoring alert policy for Cloud Run 5xx errors
+- Cloud Monitoring alert policy for Cloud Run high latency
 
 This project intentionally does **not** provision:
 
@@ -135,7 +139,10 @@ The Cloud Run module also sets:
 
 ### `modules/monitoring`
 
-Creates a Cloud Monitoring alert policy for Cloud Run 5xx responses.
+Creates Cloud Monitoring alert policies for:
+
+- Cloud Run 5xx responses
+- Cloud Run request latency above a configurable threshold
 
 Cloud Run automatically publishes metrics such as:
 
@@ -189,6 +196,9 @@ The dev environment uses these key variables:
 - `container_image`
 - `allow_unauthenticated`
 - `notification_channel_ids`
+- `enable_5xx_alert`
+- `enable_latency_alert`
+- `latency_threshold_ms`
 
 If `container_image` is left `null`, Terraform derives the image from:
 
@@ -217,7 +227,9 @@ From the repository root:
 ```bash
 cd terraform/environments/dev
 cp terraform.tfvars.example terraform.tfvars
-terraform init
+terraform init \
+  -backend-config="bucket=YOUR_TF_STATE_BUCKET" \
+  -backend-config="prefix=dag-health-api/dev"
 terraform apply -target=module.artifact_registry
 ```
 
@@ -231,10 +243,19 @@ terraform apply
 Or without changing directories:
 
 ```bash
-terraform -chdir=terraform/environments/dev init
+terraform -chdir=terraform/environments/dev init \
+  -backend-config="bucket=YOUR_TF_STATE_BUCKET" \
+  -backend-config="prefix=dag-health-api/dev"
 terraform -chdir=terraform/environments/dev apply -target=module.artifact_registry
 terraform -chdir=terraform/environments/dev plan
 terraform -chdir=terraform/environments/dev apply
+```
+
+If you only want local validation and do not want to configure remote state yet, use:
+
+```bash
+terraform -chdir=terraform/environments/dev init -backend=false
+terraform -chdir=terraform/environments/dev validate
 ```
 
 GitHub Actions equivalent:
@@ -338,7 +359,7 @@ Cloud Run also automatically emits metrics into Cloud Monitoring, including:
 - memory utilization
 - instance count
 
-This project adds a Cloud Monitoring alert policy for 5xx responses on the Cloud Run service. Notification channel IDs are optional:
+This project adds Cloud Monitoring alert policies for 5xx responses and high request latency on the Cloud Run service. The latency alert defaults to `2000 ms` (2 seconds). Notification channel IDs are optional:
 
 - if provided, alerts can notify email, PagerDuty, Slack integrations, and more
 - if omitted, the policy can still be created and wired later
@@ -373,6 +394,7 @@ Current implementation includes:
 - Cloud Run service and service account
 - public invoker configuration toggle
 - Cloud Monitoring 5xx alert policy
+- Cloud Monitoring latency alert policy
 - environment-aware variables and outputs
 - GitHub workflow alignment for bootstrap, infra, CI, and CD
 
@@ -394,4 +416,5 @@ The dev environment exposes useful outputs, including:
 - Artifact Registry repository URL
 - Cloud Run service account email
 - deployed container image
-- Cloud Monitoring alert policy name
+- Cloud Monitoring 5xx alert policy name
+- Cloud Monitoring latency alert policy name

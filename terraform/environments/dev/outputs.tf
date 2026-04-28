@@ -32,3 +32,8 @@ output "monitoring_5xx_alert_policy_name" {
   description = "Cloud Monitoring alert policy name for Cloud Run 5xx errors."
   value       = module.monitoring.five_xx_alert_policy_name
 }
+
+output "monitoring_latency_alert_policy_name" {
+  description = "Cloud Monitoring alert policy name for Cloud Run high latency."
+  value       = module.monitoring.latency_alert_policy_name
+}
