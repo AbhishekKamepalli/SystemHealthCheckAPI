@@ -80,24 +80,34 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
+      - name: Check whether plan prerequisites are configured
+        id: settings
+        shell: bash
+        run: |
+          if [[ -n "${{ vars.GCP_PROJECT_ID }}" && -n "${{ vars.GCP_REGION }}" && -n "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" && -n "${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}" ]]; then
+            echo "can_auth=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "can_auth=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Explain skipped Terraform plan
-        if: ${{ !vars.GCP_PROJECT_ID || !vars.GCP_REGION || !secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || !secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+        if: steps.settings.outputs.can_auth != 'true'
         run: |
           echo "Terraform plan was skipped because GCP auth or repository variables are not configured."
 
       - name: Authenticate to Google Cloud
-        if: ${{ vars.GCP_PROJECT_ID && vars.GCP_REGION && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER && secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+        if: steps.settings.outputs.can_auth == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Terraform init
-        if: ${{ vars.GCP_PROJECT_ID && vars.GCP_REGION && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER && secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+        if: steps.settings.outputs.can_auth == 'true'
         run: terraform init -backend=false
 
       - name: Terraform plan
-        if: ${{ vars.GCP_PROJECT_ID && vars.GCP_REGION && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER && secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+        if: steps.settings.outputs.can_auth == 'true'
         run: |
           terraform plan \
             -input=false \
